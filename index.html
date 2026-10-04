@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Web Hub - ซิงค์ลิงก์ข้ามอุปกรณ์</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Prompt', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col">
+
+    <!-- Navbar -->
+    <nav class="bg-slate-800 border-b border-slate-700 px-6 py-4 flex justify-between items-center shadow-md">
+        <h1 class="text-xl font-bold text-sky-400">🌐 Dashboard Web Hub</h1>
+        <div id="auth-section" class="flex items-center gap-4"></div>
+    </nav>
+
+    <!-- Main Container -->
+    <main class="flex-grow container mx-auto px-4 py-8 max-w-4xl">
+        
+        <!-- หน้าจอยังไม่ล็อกอิน -->
+        <div id="login-screen" class="text-center py-20">
+            <h2 class="text-3xl font-bold mb-4">ยินดีต้อนรับสู่ Dashboard Web Hub</h2>
+            <p class="text-slate-400 mb-8">บันทึกและจัดเก็บลิงก์โปรด ซิงค์ข้อมูลอัตโนมัติเปิดดูได้ทุกอุปกรณ์ผ่านบัญชี Google</p>
+            <button onclick="loginWithGoogle()" class="bg-sky-500 hover:bg-sky-600 text-white font-medium px-6 py-3 rounded-xl shadow-lg transition duration-200 flex items-center gap-2 mx-auto">
+                🔑 เข้าสู่ระบบด้วย Google
+            </button>
+        </div>
+
+        <!-- หน้าจอหลัก (หลังล็อกอินแล้ว) -->
+        <div id="app-screen" class="hidden">
+            <div class="bg-slate-800 border border-slate-700 p-6 rounded-2xl shadow-xl mb-8">
+                <h3 class="text-lg font-semibold mb-4 text-sky-300">➕ เพิ่มลิงก์ใหม่</h3>
+                <form id="link-form" onsubmit="addLink(event)" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <input type="text" id="link-title" placeholder="ชื่อเว็บไซต์ (เช่น GitHub)" required
+                        class="bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 focus:outline-none focus:border-sky-500">
+                    <input type="url" id="link-url" placeholder="URL (เช่น https://github.com)" required
+                        class="bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 focus:outline-none focus:border-sky-500">
+                    <button type="submit" class="bg-emerald-500 hover:bg-emerald-600 text-white font-medium rounded-xl py-2.5 transition duration-200">
+                        บันทึกลิงก์
+                    </button>
+                </form>
+            </div>
+
+            <div>
+                <h3 class="text-lg font-semibold mb-4 text-slate-300">📌 ลิงก์ทั้งหมดของคุณ (ซิงค์แบบเรียลไทม์)</h3>
+                <div id="links-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4"></div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="text-center py-4 text-slate-500 text-sm border-t border-slate-800">
+        Dashboard Web Hub Hosted on GitHub Pages & Powered by Firebase
+    </footer>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getFirestore, collection, addDoc, query, where, onSnapshot, deleteDoc, doc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        // ⚠️ นำค่า Firebase Config ของคุณมาวางแทนที่ด้านล่างนี้
+        const firebaseConfig = {
+            apiKey: "AIzaSyCWejoXcmbI9oAZR3arIWEz_5DJXiBZ5r0",
+            authDomain: "my-web-hub-7dff8.firebaseapp.com",
+            projectId: "my-web-hub-7dff8",
+            storageBucket: "my-web-hub-7dff8.firebasestorage.app",
+            messagingSenderId: "894549657012",
+            appId: "1:894549657012:web:113c86b1b110ed6109dee1"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const provider = new GoogleAuthProvider();
+
+        let unsubscribe = null;
+
+        window.loginWithGoogle = () => {
+            signInWithPopup(auth, provider).catch((error) => {
+                console.error("Login Error:", error);
+                alert("เกิดข้อผิดพลาดในการเข้าสู่ระบบ: " + error.message);
+            });
+        };
+
+        window.logout = () => {
+            signOut(auth);
+        };
+
+        onAuthStateChanged(auth, (user) => {
+            const authSection = document.getElementById('auth-section');
+            const loginScreen = document.getElementById('login-screen');
+            const appScreen = document.getElementById('app-screen');
+
+            if (user) {
+                loginScreen.classList.add('hidden');
+                appScreen.classList.remove('hidden');
+                authSection.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <img src="${user.photoURL}" alt="Avatar" class="w-8 h-8 rounded-full border border-sky-400">
+                        <span class="text-sm font-medium hidden sm:inline">${user.displayName}</span>
+                        <button onclick="logout()" class="bg-rose-500 hover:bg-rose-600 text-white text-xs px-3 py-1.5 rounded-lg transition">ออกจากระบบ</button>
+                    </div>
+                `;
+                loadUserLinks(user.uid);
+            } else {
+                loginScreen.classList.remove('hidden');
+                appScreen.classList.add('hidden');
+                authSection.innerHTML = '';
+                if (unsubscribe) unsubscribe();
+            }
+        });
+
+        window.addLink = async (e) => {
+            e.preventDefault();
+            const title = document.getElementById('link-title').value;
+            const url = document.getElementById('link-url').value;
+            const user = auth.currentUser;
+
+            if (!user) return;
+
+            try {
+                await addDoc(collection(db, "links"), {
+                    uid: user.uid,
+                    title: title,
+                    url: url,
+                    createdAt: serverTimestamp()
+                });
+                document.getElementById('link-form').reset();
+            } catch (error) {
+                console.error("Error adding link: ", error);
+                alert("ไม่สามารถบันทึกข้อมูลได้");
+            }
+        };
+
+        window.deleteLink = async (id) => {
+            if (confirm("คุณต้องการลบลิงก์นี้ใช่หรือไม่?")) {
+                try {
+                    await deleteDoc(doc(db, "links", id));
+                } catch (error) {
+                    console.error("Error deleting link: ", error);
+                }
+            }
+        };
+
+        function loadUserLinks(uid) {
+            const q = query(collection(db, "links"), where("uid", "==", uid));
+            
+            unsubscribe = onSnapshot(q, (querySnapshot) => {
+                const linksGrid = document.getElementById('links-grid');
+                linksGrid.innerHTML = "";
+
+                if (querySnapshot.empty) {
+                    linksGrid.innerHTML = `<p class="text-slate-500 col-span-full text-center py-8">ยังไม่มีลิงก์ที่บันทึกไว้ ลองเพิ่มลิงก์แรกของคุณเลย!</p>`;
+                    return;
+                }
+
+                querySnapshot.forEach((docSnap) => {
+                    const data = docSnap.data();
+                    const id = docSnap.id;
+                    
+                    let domain = "";
+                    try { domain = new URL(data.url).hostname; } catch(e) {}
+
+                    const card = document.createElement('div');
+                    card.className = "bg-slate-800 border border-slate-700/60 p-4 rounded-xl shadow hover:border-sky-500/50 transition flex flex-col justify-between gap-3 group";
+                    card.innerHTML = `
+                        <div>
+                            <div class="flex items-center gap-2 mb-1">
+                                <img src="https://www.google.com/s2/favicons?domain=${domain}&sz=32" class="w-4 h-4 rounded" onerror="this.src='https://via.placeholder.com/16'">
+                                <h4 class="font-semibold text-slate-200 truncate">${data.title}</h4>
+                            </div>
+                            <a href="${data.url}" target="_blank" class="text-xs text-sky-400 hover:underline truncate block">${data.url}</a>
+                        </div>
+                        <div class="flex justify-between items-center pt-2 border-t border-slate-700/40">
+                            <a href="${data.url}" target="_blank" class="bg-sky-500/10 hover:bg-sky-500 text-sky-400 hover:text-white text-xs px-3 py-1.5 rounded-lg transition font-medium">เปิดลิงก์ ↗</a>
+                            <button onclick="deleteLink('${id}')" class="text-slate-500 hover:text-rose-400 text-xs transition">ลบ</button>
+                        </div>
+                    `;
+                    linksGrid.appendChild(card);
+                });
+            });
+        }
+    </script>
+</body>
+</html>
